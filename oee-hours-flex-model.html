@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OEE / Hours Flex Model</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --border: #e0e0e0;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --red: #ef4444;
+    --red-light: #fef2f2;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --orange: #f59e0b;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 0.875rem; margin-bottom: 24px; }
+  .wrap { display: flex; flex-direction: column; gap: 20px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 14px; color: var(--text); }
+  .card h3 { font-size: 0.8rem; font-weight: 600; margin-bottom: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Segmented buttons */
+  .seg-group { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+  .seg-group label { font-size: 0.8rem; color: var(--muted); font-weight: 500; min-width: 100%; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button {
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: none;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    border-right: 1px solid var(--border);
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--accent); color: #fff; }
+  .seg button:hover:not(.active) { background: var(--accent-light); }
+
+  /* Sliders */
+  .slider-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .slider-row label { font-size: 0.85rem; font-weight: 500; min-width: 120px; }
+  .slider-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .slider-val {
+    font-size: 0.85rem; font-weight: 600; min-width: 60px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .slider-bench { font-size: 0.75rem; color: var(--muted); min-width: 100px; }
+  .oee-composite {
+    margin-top: 8px; padding: 10px 14px; background: var(--accent-light);
+    border-radius: 6px; font-size: 0.9rem; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .oee-composite span { font-size: 1.2rem; color: var(--accent); }
+
+  /* Weeks / Lines sliders */
+  .input-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 0; }
+  .input-row .slider-row { flex: 1; min-width: 260px; margin-bottom: 0; }
+
+  /* Revenue controls */
+  .rev-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .rev-row .slider-row { flex: 1; min-width: 280px; }
+
+  /* Summary grid */
+  .grid4 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .metric-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .metric-card .label { font-size: 0.78rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+  .metric-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .metric-card.blue .value { color: var(--accent); }
+  .metric-card.green .value { color: var(--green); }
+  .metric-card.red .value { color: var(--red); }
+  .metric-card.orange .value { color: var(--orange); }
+
+  /* Waterfall table */
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border); font-weight: 600; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  td:nth-child(2), td:nth-child(3), th:nth-child(2), th:nth-child(3) { text-align: right; }
+  tr.loss td { color: var(--red); background: var(--red-light); }
+  tr.gain td { color: var(--green); background: var(--green-light); }
+  tr.total td { font-weight: 700; border-top: 2px solid var(--text); background: var(--accent-light); }
+
+  /* Charts */
+  .chart-wrap { position: relative; width: 100%; max-height: 360px; }
+  .chart-wrap canvas { width: 100% !important; }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    .grid4 { grid-template-columns: 1fr 1fr; }
+    .seg button { padding: 5px 10px; font-size: 0.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<h1>OEE / Hours Flex Model</h1>
+<p class="subtitle">Interactive production hours and revenue planning — flex shifts, OEE assumptions, and revenue inputs in real time</p>
+
+<div class="wrap">
+
+  <!-- Shift Schedule -->
+  <div class="card">
+    <h2>Shift Schedule</h2>
+    <div class="seg-group">
+      <label>Shifts per day</label>
+      <div class="seg" id="seg-shifts">
+        <button data-key="shifts" data-val="1" class="active">1 Shift</button>
+        <button data-key="shifts" data-val="2">2 Shifts</button>
+        <button data-key="shifts" data-val="3">3 Shifts</button>
+      </div>
+    </div>
+    <div class="seg-group">
+      <label>Hours per shift</label>
+      <div class="seg" id="seg-hpshift">
+        <button data-key="hpshift" data-val="8">8 hrs</button>
+        <button data-key="hpshift" data-val="10" class="active">10 hrs</button>
+        <button data-key="hpshift" data-val="12">12 hrs</button>
+      </div>
+    </div>
+    <div class="seg-group">
+      <label>Days per week</label>
+      <div class="seg" id="seg-days">
+        <button data-key="days" data-val="4">4 days</button>
+        <button data-key="days" data-val="5" class="active">5 days</button>
+        <button data-key="days" data-val="6">6 days</button>
+        <button data-key="days" data-val="7">7 days</button>
+      </div>
+    </div>
+    <div class="input-row">
+      <div class="slider-row">
+        <label>Prod. weeks / yr</label>
+        <input type="range" id="sl-weeks" min="40" max="52" value="50" step="1">
+        <span class="slider-val" id="val-weeks">50</span>
+      </div>
+      <div class="slider-row">
+        <label>Production lines</label>
+        <input type="range" id="sl-lines" min="1" max="6" value="2" step="1">
+        <span class="slider-val" id="val-lines">2</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- OEE Components -->
+  <div class="card">
+    <h2>OEE Components</h2>
+    <div class="slider-row">
+      <label>Availability (A)</label>
+      <input type="range" id="sl-avail" min="50" max="99" value="85" step="1">
+      <span class="slider-val" id="val-avail">85%</span>
+      <span class="slider-bench">≥90% world class</span>
+    </div>
+    <div class="slider-row">
+      <label>Performance (P)</label>
+      <input type="range" id="sl-perf" min="50" max="99" value="80" step="1">
+      <span class="slider-val" id="val-perf">80%</span>
+      <span class="slider-bench">≥95% world class</span>
+    </div>
+    <div class="slider-row">
+      <label>Quality (Q)</label>
+      <input type="range" id="sl-qual" min="500" max="999" value="950" step="1">
+      <span class="slider-val" id="val-qual">95.0%</span>
+      <span class="slider-bench">≥99.5% world class</span>
+    </div>
+    <div class="oee-composite">
+      OEE Composite: <span id="oee-pct">64.6%</span>
+    </div>
+  </div>
+
+  <!-- Revenue Model -->
+  <div class="card">
+    <h2>Revenue Model</h2>
+    <div class="rev-row">
+      <div class="slider-row">
+        <label>Revenue / prod. hr</label>
+        <input type="range" id="sl-rph" min="10000" max="35000" value="21000" step="1000">
+        <span class="slider-val" id="val-rph">$21,000</span>
+      </div>
+    </div>
+    <div class="seg-group" style="margin-top:12px">
+      <label>Ramp phase</label>
+      <div class="seg" id="seg-ramp">
+        <button data-key="ramp" data-val="0.5" class="active">Yr 1 (50%)</button>
+        <button data-key="ramp" data-val="0.85">Yr 2 (85%)</button>
+        <button data-key="ramp" data-val="1">Yr 3 (100%)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Metrics -->
+  <div class="grid4">
+    <div class="metric-card blue">
+      <div class="label">Planned Hours / Yr</div>
+      <div class="value" id="m-planned">—</div>
+    </div>
+    <div class="metric-card green">
+      <div class="label">Productive OEE Hours</div>
+      <div class="value" id="m-oee-hrs">—</div>
+    </div>
+    <div class="metric-card green">
+      <div class="label">Projected Revenue</div>
+      <div class="value" id="m-rev">—</div>
+    </div>
+    <div class="metric-card red">
+      <div class="label">Lost Revenue (OEE Gap)</div>
+      <div class="value" id="m-lost">—</div>
+    </div>
+  </div>
+
+  <!-- Hour Waterfall -->
+  <div class="card">
+    <h2>Hour Waterfall</h2>
+    <table id="waterfall">
+      <thead>
+        <tr><th>Step</th><th>Hours</th><th>Cumulative</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Monthly Revenue Chart -->
+  <div class="card">
+    <h2>Monthly Revenue Profile</h2>
+    <div class="chart-wrap">
+      <canvas id="chartRevenue"></canvas>
+    </div>
+  </div>
+
+  <!-- Shift Permutations Chart -->
+  <div class="card">
+    <h2>Shift Permutations — Productive OEE Hours</h2>
+    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;">24 common shift/day combinations at current OEE. Active config highlighted in dark blue.</p>
+    <div class="chart-wrap" style="max-height:520px;">
+      <canvas id="chartPerms"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+/* ── State ── */
+let cfg = {
+  shifts: 1,
+  hpshift: 10,
+  days: 5,
+  weeks: 50,
+  lines: 2,
+  avail: 85,
+  perf: 80,
+  qual: 95,
+  rph: 21000,
+  ramp: 0.5
+};
+
+/* ── Charts (initialised once) ── */
+let revenueChart, permsChart;
+
+function initCharts() {
+  const revCtx = document.getElementById('chartRevenue').getContext('2d');
+  revenueChart = new Chart(revCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      datasets: [
+        { label: 'Projected Revenue', data: [], backgroundColor: 'rgba(37,99,235,0.7)', borderRadius: 4, order: 2 },
+        { label: 'Full Potential (100% OEE)', data: [], backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.4)', borderWidth: 1, borderRadius: 4, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return ctx.dataset.label + ': $' + Math.round(ctx.raw).toLocaleString(); }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: function(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; } }
+        }
+      }
+    }
+  });
+
+  const permCtx = document.getElementById('chartPerms').getContext('2d');
+  permsChart = new Chart(permCtx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Productive OEE Hours', data: [], backgroundColor: [], borderRadius: 3 }] },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) { return Math.round(ctx.raw).toLocaleString() + ' hrs'; }
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: { callback: function(v) { return v.toLocaleString(); } }
+        }
+      }
+    }
+  });
+}
+
+/* ── Permutations data ── */
+function getPermutations() {
+  const shiftOpts = [1, 2, 3];
+  const hrsOpts = [8, 10, 12];
+  const dayOpts = [4, 5, 6, 7];
+  const oee = (cfg.avail / 100) * (cfg.perf / 100) * (cfg.qual / 100);
+  const perms = [];
+  for (const s of shiftOpts) {
+    for (const d of dayOpts) {
+      for (const h of hrsOpts) {
+        // Skip impractical combos (3 shifts × 12 hrs > 24 hrs — still valid as rotating)
+        const planned = s * h * d * cfg.weeks * cfg.lines;
+        const productive = planned * oee;
+        const isActive = s === cfg.shifts && h === cfg.hpshift && d === cfg.days;
+        perms.push({ label: s + 's × ' + h + 'h × ' + d + 'd', productive: productive, isActive: isActive });
+      }
+    }
+  }
+  perms.sort(function(a, b) { return a.productive - b.productive; });
+  return perms;
+}
+
+/* ── Main update ── */
+function update() {
+  /* Derived values */
+  var plannedHours = cfg.shifts * cfg.hpshift * cfg.days * cfg.weeks * cfg.lines;
+  var oee = (cfg.avail / 100) * (cfg.perf / 100) * (cfg.qual / 100);
+  var afterAvail = plannedHours * (cfg.avail / 100);
+  var availLoss = plannedHours - afterAvail;
+  var afterPerf = afterAvail * (cfg.perf / 100);
+  var perfLoss = afterAvail - afterPerf;
+  var afterQual = afterPerf * (cfg.qual / 100);
+  var qualLoss = afterPerf - afterQual;
+  var productiveHours = afterQual;
+  var projRevenue = productiveHours * cfg.rph * cfg.ramp;
+  var fullPotentialRev = plannedHours * cfg.rph * cfg.ramp;
+  var lostRevenue = fullPotentialRev - projRevenue;
+
+  /* Update slider displays */
+  document.getElementById('val-weeks').textContent = cfg.weeks;
+  document.getElementById('val-lines').textContent = cfg.lines;
+  document.getElementById('val-avail').textContent = cfg.avail + '%';
+  document.getElementById('val-perf').textContent = cfg.perf + '%';
+  document.getElementById('val-qual').textContent = cfg.qual.toFixed(1) + '%';
+  document.getElementById('val-rph').textContent = '$' + cfg.rph.toLocaleString();
+  document.getElementById('oee-pct').textContent = (oee * 100).toFixed(1) + '%';
+
+  /* Update metric cards */
+  document.getElementById('m-planned').textContent = Math.round(plannedHours).toLocaleString();
+  document.getElementById('m-oee-hrs').textContent = Math.round(productiveHours).toLocaleString();
+  document.getElementById('m-rev').textContent = '$' + Math.round(projRevenue).toLocaleString();
+  document.getElementById('m-lost').textContent = '$' + Math.round(lostRevenue).toLocaleString();
+
+  /* Waterfall table */
+  var tbody = document.querySelector('#waterfall tbody');
+  var rows = [
+    { step: 'Gross Planned Hours', hrs: plannedHours, cum: plannedHours, cls: 'gain' },
+    { step: '− Availability Loss (' + cfg.avail + '%)', hrs: -availLoss, cum: afterAvail, cls: 'loss' },
+    { step: '− Performance Loss (' + cfg.perf + '%)', hrs: -perfLoss, cum: afterPerf, cls: 'loss' },
+    { step: '− Quality Loss (' + cfg.qual.toFixed(1) + '%)', hrs: -qualLoss, cum: afterQual, cls: 'loss' },
+    { step: 'Productive OEE Hours', hrs: productiveHours, cum: productiveHours, cls: 'total' }
+  ];
+  tbody.innerHTML = '';
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var sign = r.hrs < 0 ? '−' : '';
+    var tr = document.createElement('tr');
+    tr.className = r.cls;
+    tr.innerHTML = '<td>' + r.step + '</td>'
+      + '<td>' + sign + Math.round(Math.abs(r.hrs)).toLocaleString() + '</td>'
+      + '<td>' + Math.round(r.cum).toLocaleString() + '</td>';
+    tbody.appendChild(tr);
+  }
+
+  /* Monthly revenue chart */
+  var rampCurve = [0.6, 0.7, 0.78, 0.85, 0.9, 0.94, 0.97, 0.99, 1.0, 1.0, 1.0, 1.0];
+  var monthlyProj = [];
+  var monthlyFull = [];
+  var annualProj = projRevenue;
+  var annualFull = fullPotentialRev;
+  for (var m = 0; m < 12; m++) {
+    monthlyProj[m] = (annualProj / 12) * rampCurve[m];
+    monthlyFull[m] = (annualFull / 12) * rampCurve[m];
+  }
+  revenueChart.data.datasets[0].data = monthlyProj;
+  revenueChart.data.datasets[1].data = monthlyFull;
+  revenueChart.update('none');
+
+  /* Permutations chart */
+  var perms = getPermutations();
+  permsChart.data.labels = perms.map(function(p) { return p.label; });
+  permsChart.data.datasets[0].data = perms.map(function(p) { return Math.round(p.productive); });
+  permsChart.data.datasets[0].backgroundColor = perms.map(function(p) {
+    return p.isActive ? 'rgba(37,99,235,0.9)' : 'rgba(37,99,235,0.25)';
+  });
+  permsChart.update('none');
+}
+
+/* ── Event wiring ── */
+
+/* Segmented buttons */
+document.querySelectorAll('.seg button').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var key = this.getAttribute('data-key');
+    var val = parseFloat(this.getAttribute('data-val'));
+    cfg[key] = val;
+    /* Update active state in this segment group */
+    this.parentElement.querySelectorAll('button').forEach(function(b) { b.classList.remove('active'); });
+    this.classList.add('active');
+    update();
+  });
+});
+
+/* Sliders */
+document.getElementById('sl-weeks').addEventListener('input', function() { cfg.weeks = parseInt(this.value); update(); });
+document.getElementById('sl-lines').addEventListener('input', function() { cfg.lines = parseInt(this.value); update(); });
+document.getElementById('sl-avail').addEventListener('input', function() { cfg.avail = parseInt(this.value); update(); });
+document.getElementById('sl-perf').addEventListener('input', function() { cfg.perf = parseInt(this.value); update(); });
+document.getElementById('sl-qual').addEventListener('input', function() { cfg.qual = parseInt(this.value) / 10; update(); });
+document.getElementById('sl-rph').addEventListener('input', function() { cfg.rph = parseInt(this.value); update(); });
+
+/* ── Init ── */
+initCharts();
+update();
+</script>
+
+</body>
+</html>
