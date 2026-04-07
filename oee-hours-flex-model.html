@@ -83,10 +83,6 @@
   .input-row { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 0; }
   .input-row .slider-row { flex: 1; min-width: 260px; margin-bottom: 0; }
 
-  /* Revenue controls */
-  .rev-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
-  .rev-row .slider-row { flex: 1; min-width: 280px; }
-
   /* Summary grid */
   .grid4 {
     display: grid;
@@ -132,7 +128,7 @@
 <body>
 
 <h1>OEE / Hours Flex Model</h1>
-<p class="subtitle">Interactive production hours and revenue planning — flex shifts, OEE assumptions, and revenue inputs in real time</p>
+<p class="subtitle">Interactive production hours planning — flex shifts, OEE assumptions, and schedule inputs in real time</p>
 
 <div class="wrap">
 
@@ -204,26 +200,6 @@
     </div>
   </div>
 
-  <!-- Revenue Model -->
-  <div class="card">
-    <h2>Revenue Model</h2>
-    <div class="rev-row">
-      <div class="slider-row">
-        <label>Revenue / prod. hr</label>
-        <input type="range" id="sl-rph" min="10000" max="35000" value="21000" step="1000">
-        <span class="slider-val" id="val-rph">$21,000</span>
-      </div>
-    </div>
-    <div class="seg-group" style="margin-top:12px">
-      <label>Ramp phase</label>
-      <div class="seg" id="seg-ramp">
-        <button data-key="ramp" data-val="0.5" class="active">Yr 1 (50%)</button>
-        <button data-key="ramp" data-val="0.85">Yr 2 (85%)</button>
-        <button data-key="ramp" data-val="1">Yr 3 (100%)</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Summary Metrics -->
   <div class="grid4">
     <div class="metric-card blue">
@@ -234,12 +210,12 @@
       <div class="label">Productive OEE Hours</div>
       <div class="value" id="m-oee-hrs">—</div>
     </div>
-    <div class="metric-card green">
-      <div class="label">Projected Revenue</div>
-      <div class="value" id="m-rev">—</div>
+    <div class="metric-card orange">
+      <div class="label">OEE Composite</div>
+      <div class="value" id="m-oee-pct">—</div>
     </div>
     <div class="metric-card red">
-      <div class="label">Lost Revenue (OEE Gap)</div>
+      <div class="label">Hours Lost (OEE Gap)</div>
       <div class="value" id="m-lost">—</div>
     </div>
   </div>
@@ -253,14 +229,6 @@
       </thead>
       <tbody></tbody>
     </table>
-  </div>
-
-  <!-- Monthly Revenue Chart -->
-  <div class="card">
-    <h2>Monthly Revenue Profile</h2>
-    <div class="chart-wrap">
-      <canvas id="chartRevenue"></canvas>
-    </div>
   </div>
 
   <!-- Shift Permutations Chart -->
@@ -285,45 +253,13 @@ let cfg = {
   lines: 2,
   avail: 85,
   perf: 80,
-  qual: 95,
-  rph: 21000,
-  ramp: 0.5
+  qual: 95
 };
 
 /* ── Charts (initialised once) ── */
-let revenueChart, permsChart;
+let permsChart;
 
 function initCharts() {
-  const revCtx = document.getElementById('chartRevenue').getContext('2d');
-  revenueChart = new Chart(revCtx, {
-    type: 'bar',
-    data: {
-      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-      datasets: [
-        { label: 'Projected Revenue', data: [], backgroundColor: 'rgba(37,99,235,0.7)', borderRadius: 4, order: 2 },
-        { label: 'Full Potential (100% OEE)', data: [], backgroundColor: 'rgba(37,99,235,0.15)', borderColor: 'rgba(37,99,235,0.4)', borderWidth: 1, borderRadius: 4, order: 1 }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 12 } } },
-        tooltip: {
-          callbacks: {
-            label: function(ctx) { return ctx.dataset.label + ': $' + Math.round(ctx.raw).toLocaleString(); }
-          }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { callback: function(v) { return '$' + (v / 1e6).toFixed(1) + 'M'; } }
-        }
-      }
-    }
-  });
-
   const permCtx = document.getElementById('chartPerms').getContext('2d');
   permsChart = new Chart(permCtx, {
     type: 'bar',
@@ -384,9 +320,7 @@ function update() {
   var afterQual = afterPerf * (cfg.qual / 100);
   var qualLoss = afterPerf - afterQual;
   var productiveHours = afterQual;
-  var projRevenue = productiveHours * cfg.rph * cfg.ramp;
-  var fullPotentialRev = plannedHours * cfg.rph * cfg.ramp;
-  var lostRevenue = fullPotentialRev - projRevenue;
+  var lostHours = plannedHours - productiveHours;
 
   /* Update slider displays */
   document.getElementById('val-weeks').textContent = cfg.weeks;
@@ -394,14 +328,13 @@ function update() {
   document.getElementById('val-avail').textContent = cfg.avail + '%';
   document.getElementById('val-perf').textContent = cfg.perf + '%';
   document.getElementById('val-qual').textContent = cfg.qual.toFixed(1) + '%';
-  document.getElementById('val-rph').textContent = '$' + cfg.rph.toLocaleString();
   document.getElementById('oee-pct').textContent = (oee * 100).toFixed(1) + '%';
 
   /* Update metric cards */
   document.getElementById('m-planned').textContent = Math.round(plannedHours).toLocaleString();
   document.getElementById('m-oee-hrs').textContent = Math.round(productiveHours).toLocaleString();
-  document.getElementById('m-rev').textContent = '$' + Math.round(projRevenue).toLocaleString();
-  document.getElementById('m-lost').textContent = '$' + Math.round(lostRevenue).toLocaleString();
+  document.getElementById('m-oee-pct').textContent = (oee * 100).toFixed(1) + '%';
+  document.getElementById('m-lost').textContent = Math.round(lostHours).toLocaleString();
 
   /* Waterfall table */
   var tbody = document.querySelector('#waterfall tbody');
@@ -423,20 +356,6 @@ function update() {
       + '<td>' + Math.round(r.cum).toLocaleString() + '</td>';
     tbody.appendChild(tr);
   }
-
-  /* Monthly revenue chart */
-  var rampCurve = [0.6, 0.7, 0.78, 0.85, 0.9, 0.94, 0.97, 0.99, 1.0, 1.0, 1.0, 1.0];
-  var monthlyProj = [];
-  var monthlyFull = [];
-  var annualProj = projRevenue;
-  var annualFull = fullPotentialRev;
-  for (var m = 0; m < 12; m++) {
-    monthlyProj[m] = (annualProj / 12) * rampCurve[m];
-    monthlyFull[m] = (annualFull / 12) * rampCurve[m];
-  }
-  revenueChart.data.datasets[0].data = monthlyProj;
-  revenueChart.data.datasets[1].data = monthlyFull;
-  revenueChart.update('none');
 
   /* Permutations chart */
   var perms = getPermutations();
@@ -469,7 +388,6 @@ document.getElementById('sl-lines').addEventListener('input', function() { cfg.l
 document.getElementById('sl-avail').addEventListener('input', function() { cfg.avail = parseInt(this.value); update(); });
 document.getElementById('sl-perf').addEventListener('input', function() { cfg.perf = parseInt(this.value); update(); });
 document.getElementById('sl-qual').addEventListener('input', function() { cfg.qual = parseInt(this.value) / 10; update(); });
-document.getElementById('sl-rph').addEventListener('input', function() { cfg.rph = parseInt(this.value); update(); });
 
 /* ── Init ── */
 initCharts();
