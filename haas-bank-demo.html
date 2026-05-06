@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holding zone — Haas bank fill-up demo</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    color: #1f1e1c;
+    background: #faf9f5;
+    margin: 0;
+    padding: 2.5rem 1.5rem;
+    line-height: 1.6;
+  }
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 0.5rem; }
+  .sub { font-size: 14px; color: #73726c; margin: 0 0 2rem; max-width: 70ch; }
+  .surface {
+    background: #ffffff;
+    border: 0.5px solid rgba(0,0,0,0.12);
+    border-radius: 12px;
+    padding: 1.5rem;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin: 1rem 0 0.5rem;
+    font-size: 13px;
+    color: #73726c;
+    flex-wrap: wrap;
+  }
+  .legend-swatch {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: -3px;
+    border: 0.5px solid rgba(0,0,0,0.2);
+  }
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 0.5px solid rgba(0,0,0,0.25);
+    border-radius: 8px;
+    color: #1f1e1c;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  button:hover:not(:disabled) { background: #f1efe8; }
+  button:active:not(:disabled) { transform: scale(0.98); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .metric {
+    background: #f5f3ec;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+  }
+  .metric-label { font-size: 12px; color: #73726c; margin-bottom: 4px; }
+  .metric-value { font-size: 22px; font-weight: 500; }
+  .station-title { font-size: 13px; font-weight: 500; }
+  .station-sub { font-size: 11px; }
+  .arr { stroke: #888780; stroke-width: 1.5; fill: none; }
+  text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  .mill-id { font-size: 11px; font-weight: 500; pointer-events: none; }
+  .mill-time { font-size: 10px; pointer-events: none; }
+  .footer-note {
+    margin-top: 1.5rem;
+    font-size: 13px;
+    color: #444441;
+    border-top: 0.5px solid rgba(0,0,0,0.08);
+    padding-top: 1rem;
+    line-height: 1.7;
+  }
+  .footer-note strong { font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Holding zone — 10 Haas mills × 10.5 min cycle</h1>
+  <p class="sub">
+    Upstream feeds at ~63 sec takt. Holding zone buffers up to 6 parts.
+    Haas bank has 10 mills running in parallel, each on a 10.5 min cycle.
+    All 10 must be loaded before the line reaches steady-state output.
+    1 second = 1 minute.
+  </p>
+
+  <div class="surface">
+
+    <svg viewBox="0 0 680 320" role="img" aria-label="Production line with 10 Haas mills">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+
+      <line x1="105" y1="170" x2="135" y2="170" class="arr" marker-end="url(#arrow)"/>
+      <line x1="235" y1="170" x2="265" y2="170" class="arr" marker-end="url(#arrow)"/>
+
+      <rect x="20" y="135" width="85" height="70" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+      <text x="62" y="162" text-anchor="middle" fill="#444441" class="station-title">Upstream</text>
+      <text x="62" y="180" text-anchor="middle" fill="#5F5E5A" class="station-sub">63 sec takt</text>
+
+      <rect x="135" y="55" width="100" height="245" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+      <text x="185" y="75" text-anchor="middle" fill="#633806" class="station-title">Holding zone</text>
+      <text x="185" y="91" text-anchor="middle" fill="#854F0B" class="station-sub">Buffer · 6 max</text>
+
+      <g id="mills"></g>
+
+      <g id="parts"></g>
+
+      <text x="660" y="240" text-anchor="end" fill="#73726c" class="station-sub">to tines / press / paint →</text>
+    </svg>
+
+    <div class="legend">
+      <div><span class="legend-swatch" style="background:#F1EFE8;border-color:#888780"></span>idle mill</div>
+      <div><span class="legend-swatch" style="background:#FAEEDA;border-color:#BA7517"></span>processing</div>
+      <div><span class="legend-swatch" style="background:#FCEBEB;border-color:#E24B4A"></span>down</div>
+      <div><span class="legend-swatch" style="background:#1D9E75;border-radius:50%"></span>part</div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-outage" onclick="triggerOutage()">Take 1 mill down (15 min)</button>
+      <button id="btn-multi-outage" onclick="triggerMultiOutage()">Take 3 mills down (15 min)</button>
+      <button onclick="resetSim()">Reset</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Buffer fill</div>
+        <div class="metric-value" id="buffer-fill">0 / 6</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Mills running</div>
+        <div class="metric-value" id="mills-busy">0 / 10</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Parts produced</div>
+        <div class="metric-value" id="total">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Time elapsed</div>
+        <div class="metric-value" id="time">0 min</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <strong>What to watch for.</strong>
+    First, the fill-up: from a cold start, takes ~10 minutes (10 takts) before the
+    first mill finishes and the line produces its first output. During this time the
+    holding zone stays nearly empty because every incoming part goes straight to a
+    free mill.
+    <br><br>
+    Next, take 1 mill down. Net inflow into the buffer is small
+    (~0.1 parts/min) because 9 mills can almost keep up. A 15 min outage adds ~1.5 parts
+    to the buffer.
+    <br><br>
+    Now take 3 mills down. Inflow into the buffer is ~0.3 parts/min — a 15 min outage
+    fills 4–5 buffer slots. With 6 slots, you can absorb roughly a 20 min triple-outage
+    before back-pressuring upstream. Beyond that, weld and respot have to gate down or
+    you stack parts on the floor.
+    <br><br>
+    The buffer-sizing question is: <em>what's our worst realistic Haas bank degradation, and
+    can the holding zone hold us through it?</em> 6 slots × 63 sec = 6.3 min of full-rate
+    upstream output, or ~20 min of partial-degradation absorption.
+  </div>
+</div>
+
+<script>
+const TAKT = 1.05;
+const CYCLE = 10.5;
+const BUFFER_CAP = 6;
+const N_MILLS = 10;
+
+const MILL_W = 72, MILL_H = 50, MILL_GAP_X = 4, MILL_GAP_Y = 8;
+const MILL_ORIGIN_X = 270, MILL_ORIGIN_Y = 95;
+
+function millRect(i) {
+  const col = i % 5;
+  const row = Math.floor(i / 5);
+  return {
+    x: MILL_ORIGIN_X + col * (MILL_W + MILL_GAP_X),
+    y: MILL_ORIGIN_Y + row * (MILL_H + MILL_GAP_Y),
+    w: MILL_W, h: MILL_H,
+  };
+}
+function millCenter(i) {
+  const r = millRect(i);
+  return { x: r.x + r.w/2, y: r.y + r.h/2 };
+}
+function bufferSlotPos(i) {
+  return { x: 185, y: 285 - i * 26 };
+}
+
+const POS = {
+  upstreamOut: {x: 105, y: 170},
+  bufferIn:    {x: 165, y: 170},
+};
+
+let mills = [];
+let parts = [];
+let nextId = 0;
+let simTime = 0;
+let lastEmit = -1;
+let bufferQueue = [];
+let outputCount = 0;
+let lastFrame = null;
+let recentlyFinished = [];
+
+function initMills() {
+  mills = Array.from({length: N_MILLS}, () => ({
+    state: 'idle',
+    cycleStart: null,
+    downUntil: 0,
+  }));
+}
+
+function newPart() {
+  return {
+    id: nextId++,
+    stage: 'travel',
+    fromPos: POS.upstreamOut,
+    toPos: POS.bufferIn,
+    travelStart: simTime,
+    travelEnd: simTime + 0.5,
+    nextStage: 'tryBuffer',
+    x: POS.upstreamOut.x,
+    y: POS.upstreamOut.y,
+    finishFlash: 0,
+  };
+}
+
+function getPos(p) {
+  if (p.stage === 'travel') {
+    const t = Math.min(1, (simTime - p.travelStart) / Math.max(0.001, p.travelEnd - p.travelStart));
+    return {
+      x: p.fromPos.x + (p.toPos.x - p.fromPos.x) * t,
+      y: p.fromPos.y + (p.toPos.y - p.fromPos.y) * t,
+    };
+  }
+  return {x: p.x, y: p.y};
+}
+
+function startTravel(p, toPos, dur, nextStage) {
+  const cur = getPos(p);
+  p.fromPos = {x: cur.x, y: cur.y};
+  p.toPos = toPos;
+  p.travelStart = simTime;
+  p.travelEnd = simTime + dur;
+  p.stage = 'travel';
+  p.nextStage = nextStage;
+}
+
+function tick(dt) {
+  simTime += dt;
+
+  if (simTime - lastEmit >= TAKT) {
+    parts.push(newPart());
+    lastEmit = simTime;
+  }
+
+  for (const p of parts) {
+    if (p.stage === 'travel' && simTime >= p.travelEnd) {
+      p.x = p.toPos.x;
+      p.y = p.toPos.y;
+      p.stage = p.nextStage;
+    }
+  }
+
+  for (const p of parts) {
+    if (p.stage === 'tryBuffer') {
+      if (bufferQueue.length < BUFFER_CAP) {
+        const slotIdx = bufferQueue.length;
+        bufferQueue.push(p.id);
+        p.bufferSlotIdx = slotIdx;
+        startTravel(p, bufferSlotPos(slotIdx), 0.4, 'inBuffer');
+      }
+    }
+  }
+
+  while (bufferQueue.length > 0) {
+    const headId = bufferQueue[0];
+    const headPart = parts.find(pp => pp.id === headId);
+    if (!headPart || headPart.stage !== 'inBuffer') break;
+
+    const freeMillIdx = mills.findIndex(m => m.state === 'idle');
+    if (freeMillIdx < 0) break;
+
+    bufferQueue.shift();
+    mills[freeMillIdx].state = 'loading';
+    mills[freeMillIdx].cycleStart = null;
+    mills[freeMillIdx].assignedPartId = headPart.id;
+
+    headPart.assignedMillIdx = freeMillIdx;
+    startTravel(headPart, millCenter(freeMillIdx), 0.7, 'inMill');
+
+    bufferQueue.forEach((id, i) => {
+      const pp = parts.find(p2 => p2.id === id);
+      if (pp && pp.bufferSlotIdx !== i) {
+        pp.bufferSlotIdx = i;
+        startTravel(pp, bufferSlotPos(i), 0.3, 'inBuffer');
+      }
+    });
+  }
+
+  for (const p of parts) {
+    if (p.stage === 'inMill' && p.assignedMillIdx !== undefined) {
+      const m = mills[p.assignedMillIdx];
+      if (m.state === 'loading' && m.cycleStart === null) {
+        m.state = 'processing';
+        m.cycleStart = simTime;
+      }
+    }
+  }
+
+  for (let i = 0; i < mills.length; i++) {
+    const m = mills[i];
+    if (m.state === 'processing' && simTime - m.cycleStart >= CYCLE) {
+      const partId = m.assignedPartId;
+      const part = parts.find(p => p.id === partId);
+      if (part) part.stage = 'gone';
+      m.state = 'idle';
+      m.cycleStart = null;
+      m.assignedPartId = null;
+      m.finishedAt = simTime;
+      outputCount++;
+    }
+    if (m.state === 'down' && simTime >= m.downUntil) {
+      m.state = 'idle';
+    }
+  }
+
+  parts = parts.filter(p => p.stage !== 'gone');
+}
+
+function render() {
+  const millsG = document.getElementById('mills');
+  while (millsG.firstChild) millsG.removeChild(millsG.firstChild);
+
+  for (let i = 0; i < N_MILLS; i++) {
+    const r = millRect(i);
+    const m = mills[i];
+    let fillColor = '#F1EFE8', strokeColor = '#888780', textColor = '#444441';
+    let progress = 0;
+
+    if (m.state === 'processing' || m.state === 'loading') {
+      fillColor = '#FAEEDA';
+      strokeColor = '#BA7517';
+      textColor = '#633806';
+      if (m.state === 'processing') {
+        progress = Math.min(1, (simTime - m.cycleStart) / CYCLE);
+      }
+    } else if (m.state === 'down') {
+      fillColor = '#FCEBEB';
+      strokeColor = '#E24B4A';
+      textColor = '#791F1F';
+    }
+
+    if (m.finishedAt && simTime - m.finishedAt < 0.6) {
+      strokeColor = '#1D9E75';
+    }
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', r.x);
+    rect.setAttribute('y', r.y);
+    rect.setAttribute('width', r.w);
+    rect.setAttribute('height', r.h);
+    rect.setAttribute('rx', 4);
+    rect.setAttribute('fill', fillColor);
+    rect.setAttribute('stroke', strokeColor);
+    rect.setAttribute('stroke-width', m.finishedAt && simTime - m.finishedAt < 0.6 ? 1.5 : 0.5);
+    millsG.appendChild(rect);
+
+    if (progress > 0) {
+      const fill = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      fill.setAttribute('x', r.x + 6);
+      fill.setAttribute('y', r.y + r.h - 12);
+      fill.setAttribute('width', (r.w - 12) * progress);
+      fill.setAttribute('height', 6);
+      fill.setAttribute('rx', 2);
+      fill.setAttribute('fill', '#EF9F27');
+      millsG.appendChild(fill);
+
+      const trough = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      trough.setAttribute('x', r.x + 6);
+      trough.setAttribute('y', r.y + r.h - 12);
+      trough.setAttribute('width', r.w - 12);
+      trough.setAttribute('height', 6);
+      trough.setAttribute('rx', 2);
+      trough.setAttribute('fill', 'none');
+      trough.setAttribute('stroke', '#BA7517');
+      trough.setAttribute('stroke-width', 0.5);
+      millsG.insertBefore(trough, fill);
+    }
+
+    const idText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    idText.setAttribute('x', r.x + 8);
+    idText.setAttribute('y', r.y + 16);
+    idText.setAttribute('fill', textColor);
+    idText.setAttribute('class', 'mill-id');
+    idText.textContent = 'M' + (i + 1);
+    millsG.appendChild(idText);
+
+    if (m.state === 'processing') {
+      const remaining = Math.max(0, CYCLE - (simTime - m.cycleStart));
+      const tText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tText.setAttribute('x', r.x + r.w - 8);
+      tText.setAttribute('y', r.y + 16);
+      tText.setAttribute('text-anchor', 'end');
+      tText.setAttribute('fill', textColor);
+      tText.setAttribute('class', 'mill-time');
+      tText.textContent = remaining.toFixed(1) + ' min';
+      millsG.appendChild(tText);
+    } else if (m.state === 'down') {
+      const remaining = Math.max(0, m.downUntil - simTime);
+      const tText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      tText.setAttribute('x', r.x + r.w - 8);
+      tText.setAttribute('y', r.y + 16);
+      tText.setAttribute('text-anchor', 'end');
+      tText.setAttribute('fill', '#791F1F');
+      tText.setAttribute('class', 'mill-time');
+      tText.textContent = 'down ' + remaining.toFixed(0);
+      millsG.appendChild(tText);
+    }
+  }
+
+  const partsG = document.getElementById('parts');
+  while (partsG.firstChild) partsG.removeChild(partsG.firstChild);
+
+  for (const p of parts) {
+    if (p.stage === 'inMill') continue;
+    const pos = getPos(p);
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', pos.x);
+    c.setAttribute('cy', pos.y);
+    c.setAttribute('r', 7);
+    c.setAttribute('fill', '#1D9E75');
+    c.setAttribute('stroke', '#0F6E56');
+    c.setAttribute('stroke-width', '0.5');
+    partsG.appendChild(c);
+  }
+
+  const millsBusy = mills.filter(m => m.state === 'processing' || m.state === 'loading').length;
+  const millsDown = mills.filter(m => m.state === 'down').length;
+  document.getElementById('buffer-fill').textContent = bufferQueue.length + ' / 6';
+  document.getElementById('mills-busy').textContent = millsBusy + ' / 10' + (millsDown > 0 ? ' (' + millsDown + ' down)' : '');
+  document.getElementById('total').textContent = outputCount;
+  document.getElementById('time').textContent = Math.floor(simTime) + ' min';
+}
+
+function triggerOutage() {
+  const candidates = [];
+  for (let i = 0; i < N_MILLS; i++) {
+    if (mills[i].state !== 'down') candidates.push(i);
+  }
+  if (candidates.length === 0) return;
+  const idx = candidates[Math.floor(Math.random() * candidates.length)];
+  takeDown(idx, 15);
+}
+
+function triggerMultiOutage() {
+  const candidates = [];
+  for (let i = 0; i < N_MILLS; i++) {
+    if (mills[i].state !== 'down') candidates.push(i);
+  }
+  for (let k = 0; k < 3 && candidates.length > 0; k++) {
+    const ci = Math.floor(Math.random() * candidates.length);
+    const idx = candidates[ci];
+    candidates.splice(ci, 1);
+    takeDown(idx, 15);
+  }
+}
+
+function takeDown(idx, durationMin) {
+  const m = mills[idx];
+  if (m.state === 'processing' || m.state === 'loading') {
+    const partId = m.assignedPartId;
+    const part = parts.find(p => p.id === partId);
+    if (part) part.stage = 'gone';
+    m.assignedPartId = null;
+  }
+  m.state = 'down';
+  m.cycleStart = null;
+  m.downUntil = simTime + durationMin;
+}
+
+function resetSim() {
+  initMills();
+  parts = [];
+  nextId = 0;
+  simTime = 0;
+  lastEmit = -1;
+  bufferQueue = [];
+  outputCount = 0;
+}
+
+function loop(ts) {
+  if (lastFrame === null) lastFrame = ts;
+  const dt = Math.min(0.1, (ts - lastFrame) / 1000);
+  lastFrame = ts;
+  tick(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+initMills();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
